@@ -161,6 +161,12 @@ void yield(void) {
     if (next == current_proc)
         return;
 
+     __asm__ __volatile__(
+        "csrw sscratch, %[sscratch]\n"
+        :
+        : [sscratch] "r" ((uint32_t) &next->stack[sizeof(next->stack)])
+    );
+
     // 上下文切换
     struct process *prev = current_proc;
     current_proc = next;
@@ -224,7 +230,9 @@ __attribute__((naked))
 __attribute__((aligned(4)))
 void kernel_entry(void) {
     __asm__ __volatile__(
-        "csrw sscratch, sp\n"
+        // 从sscratch中获取运行进程的内核栈
+        "csrrw sp, sscratch, sp\n"
+
         "addi sp, sp, -4 * 31\n"
         "sw ra,  4 * 0(sp)\n"
         "sw gp,  4 * 1(sp)\n"
@@ -257,8 +265,13 @@ void kernel_entry(void) {
         "sw s10, 4 * 28(sp)\n"
         "sw s11, 4 * 29(sp)\n"
 
+        // 获取并保存异常发生时的sp
         "csrr a0, sscratch\n"
         "sw a0, 4 * 30(sp)\n"
+
+        // 重置内核栈
+        "addi a0, sp, 4 * 31\n"
+        "csrw sscratch, a0\n"
 
         "mv a0, sp\n"
         "call handle_trap\n"
