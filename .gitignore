@@ -1,3 +1,5 @@
 # compiled source
 *.elf
 *.map
+*.o
+*.bin
