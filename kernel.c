@@ -141,7 +141,7 @@ struct process *create_process(uint32_t pc) {
     proc->pid = i + 1;
     proc->state = PROC_RUNNABLE;
     proc->sp = (uint32_t) sp;
-     proc->page_table = page_table;
+    proc->page_table = page_table;
     return proc;
 }
 
