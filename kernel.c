@@ -50,6 +50,7 @@ struct process {
     int pid;             // 进程 ID
     int state;           // 进程状态: PROC_UNUSED 或 PROC_RUNNABLE
     vaddr_t sp;          // 栈指针
+    uint32_t *page_table; // 一级页表地址
     uint8_t stack[8192]; // 内核栈
 };
 
@@ -97,6 +98,8 @@ __attribute__((naked)) void switch_context(uint32_t *prev_sp,
 
 struct process procs[PROCS_MAX]; // 所有进程控制结构
 
+extern char __kernel_base[];
+
 struct process *create_process(uint32_t pc) {
     // 查找未使用的进程控制结构
     struct process *proc = NULL;
@@ -127,6 +130,12 @@ struct process *create_process(uint32_t pc) {
     *--sp = 0;                      // s1
     *--sp = 0;                      // s0
     *--sp = (uint32_t) pc;          // ra
+
+    // 映射内核页面。
+    uint32_t *page_table = (uint32_t *) alloc_pages(1);
+    for (paddr_t paddr = (paddr_t) __kernel_base;
+         paddr < (paddr_t) __free_ram_end; paddr += PAGE_SIZE)
+        map_page(page_table, paddr, paddr, PAGE_R | PAGE_W | PAGE_X);
 
     // 初始化字段
     proc->pid = i + 1;
