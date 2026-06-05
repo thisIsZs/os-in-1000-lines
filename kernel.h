@@ -13,6 +13,7 @@
 
 //系统调用
 #define SCAUSE_ECALL 8
+#define PROC_EXITED   2
 
 //用户模式
 #define SSTATUS_SPIE (1 << 5)
