@@ -31,7 +31,7 @@ prompt:
             printf("%s\n", buf);
         }
         else if (strcmp(cmdline, "writefile") == 0)
-            writefile("hello.txt", "Hello from shell!\n", 19);
+            writefile("hello.txt", "Hello from shell!\n", 18);
         else
             printf("unknown command: %s\n", cmdline);
     }
