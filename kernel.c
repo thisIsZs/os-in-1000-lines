@@ -147,7 +147,8 @@ __attribute__((naked)) void user_entry(void) {
         "sret                      \n"
         :
         : [sepc] "r" (USER_BASE),
-          [sstatus] "r" (SSTATUS_SPIE)
+          [sstatus] "r" (SSTATUS_SPIE | SSTATUS_SUM) // updated
+
     );
 }
 
@@ -270,167 +271,6 @@ void proc_b_entry(void) {
         putchar('B');
         yield();
     }
-}
-
-//异常
-struct trap_frame {
-    uint32_t ra;
-    uint32_t gp;
-    uint32_t tp;
-    uint32_t t0;
-    uint32_t t1;
-    uint32_t t2;
-    uint32_t t3;
-    uint32_t t4;
-    uint32_t t5;
-    uint32_t t6;
-    uint32_t a0;
-    uint32_t a1;
-    uint32_t a2;
-    uint32_t a3;
-    uint32_t a4;
-    uint32_t a5;
-    uint32_t a6;
-    uint32_t a7;
-    uint32_t s0;
-    uint32_t s1;
-    uint32_t s2;
-    uint32_t s3;
-    uint32_t s4;
-    uint32_t s5;
-    uint32_t s6;
-    uint32_t s7;
-    uint32_t s8;
-    uint32_t s9;
-    uint32_t s10;
-    uint32_t s11;
-    uint32_t sp;
-} __attribute__((packed));
-
-void handle_syscall(struct trap_frame *f) {
-    switch (f->a3) {
-        case SYS_EXIT:
-            printf("process %d exited\n", current_proc->pid);
-            current_proc->state = PROC_EXITED;
-            yield();
-            PANIC("unreachable");
-        case SYS_GETCHAR:
-            while (1) {
-                long ch = getchar();
-                if (ch >= 0) {
-                    f->a0 = ch;
-                    break;
-                }
-
-                yield();
-            }
-            break;
-        case SYS_PUTCHAR:
-            putchar(f->a0);
-            break;
-        default:
-            PANIC("unexpected syscall a3=%x\n", f->a3);
-    }
-}
-
-__attribute__((naked))
-__attribute__((aligned(4)))
-void kernel_entry(void) {
-    __asm__ __volatile__(
-        // 从sscratch中获取运行进程的内核栈
-        "csrrw sp, sscratch, sp\n"
-
-        "addi sp, sp, -4 * 31\n"
-        "sw ra,  4 * 0(sp)\n"
-        "sw gp,  4 * 1(sp)\n"
-        "sw tp,  4 * 2(sp)\n"
-        "sw t0,  4 * 3(sp)\n"
-        "sw t1,  4 * 4(sp)\n"
-        "sw t2,  4 * 5(sp)\n"
-        "sw t3,  4 * 6(sp)\n"
-        "sw t4,  4 * 7(sp)\n"
-        "sw t5,  4 * 8(sp)\n"
-        "sw t6,  4 * 9(sp)\n"
-        "sw a0,  4 * 10(sp)\n"
-        "sw a1,  4 * 11(sp)\n"
-        "sw a2,  4 * 12(sp)\n"
-        "sw a3,  4 * 13(sp)\n"
-        "sw a4,  4 * 14(sp)\n"
-        "sw a5,  4 * 15(sp)\n"
-        "sw a6,  4 * 16(sp)\n"
-        "sw a7,  4 * 17(sp)\n"
-        "sw s0,  4 * 18(sp)\n"
-        "sw s1,  4 * 19(sp)\n"
-        "sw s2,  4 * 20(sp)\n"
-        "sw s3,  4 * 21(sp)\n"
-        "sw s4,  4 * 22(sp)\n"
-        "sw s5,  4 * 23(sp)\n"
-        "sw s6,  4 * 24(sp)\n"
-        "sw s7,  4 * 25(sp)\n"
-        "sw s8,  4 * 26(sp)\n"
-        "sw s9,  4 * 27(sp)\n"
-        "sw s10, 4 * 28(sp)\n"
-        "sw s11, 4 * 29(sp)\n"
-
-        // 获取并保存异常发生时的sp
-        "csrr a0, sscratch\n"
-        "sw a0, 4 * 30(sp)\n"
-
-        // 重置内核栈
-        "addi a0, sp, 4 * 31\n"
-        "csrw sscratch, a0\n"
-
-        "mv a0, sp\n"
-        "call handle_trap\n"
-
-        "lw ra,  4 * 0(sp)\n"
-        "lw gp,  4 * 1(sp)\n"
-        "lw tp,  4 * 2(sp)\n"
-        "lw t0,  4 * 3(sp)\n"
-        "lw t1,  4 * 4(sp)\n"
-        "lw t2,  4 * 5(sp)\n"
-        "lw t3,  4 * 6(sp)\n"
-        "lw t4,  4 * 7(sp)\n"
-        "lw t5,  4 * 8(sp)\n"
-        "lw t6,  4 * 9(sp)\n"
-        "lw a0,  4 * 10(sp)\n"
-        "lw a1,  4 * 11(sp)\n"
-        "lw a2,  4 * 12(sp)\n"
-        "lw a3,  4 * 13(sp)\n"
-        "lw a4,  4 * 14(sp)\n"
-        "lw a5,  4 * 15(sp)\n"
-        "lw a6,  4 * 16(sp)\n"
-        "lw a7,  4 * 17(sp)\n"
-        "lw s0,  4 * 18(sp)\n"
-        "lw s1,  4 * 19(sp)\n"
-        "lw s2,  4 * 20(sp)\n"
-        "lw s3,  4 * 21(sp)\n"
-        "lw s4,  4 * 22(sp)\n"
-        "lw s5,  4 * 23(sp)\n"
-        "lw s6,  4 * 24(sp)\n"
-        "lw s7,  4 * 25(sp)\n"
-        "lw s8,  4 * 26(sp)\n"
-        "lw s9,  4 * 27(sp)\n"
-        "lw s10, 4 * 28(sp)\n"
-        "lw s11, 4 * 29(sp)\n"
-        "lw sp,  4 * 30(sp)\n"
-        "sret\n"
-    );
-}
-
-void handle_trap(struct trap_frame *f) {
-    uint32_t scause = READ_CSR(scause);
-    uint32_t stval = READ_CSR(stval);
-    uint32_t user_pc = READ_CSR(sepc);
-
-    if (scause == SCAUSE_ECALL) {
-        handle_syscall(f);
-        user_pc += 4;
-    } else {
-        PANIC("unexpected trap scause=%x, stval=%x, sepc=%x\n", scause, stval, user_pc);
-    }
-
-    WRITE_CSR(sepc, user_pc);
 }
 
 //磁盘I/O
@@ -562,6 +402,289 @@ void read_write_disk(void *buf, unsigned sector, int is_write) {
         memcpy(buf, blk_req->data, SECTOR_SIZE);
 }
 
+//文件系统
+struct file files[FILES_MAX];
+uint8_t disk[DISK_MAX_SIZE];
+
+int oct2int(char *oct, int len) {
+    int dec = 0;
+    for (int i = 0; i < len; i++) {
+        if (oct[i] < '0' || oct[i] > '7')
+            break;
+
+        dec = dec * 8 + (oct[i] - '0');
+    }
+    return dec;
+}
+
+void fs_init(void) {
+    for (unsigned sector = 0; sector < sizeof(disk) / SECTOR_SIZE; sector++)
+        read_write_disk(&disk[sector * SECTOR_SIZE], sector, false);
+
+    unsigned off = 0;
+    for (int i = 0; i < FILES_MAX; i++) {
+        struct tar_header *header = (struct tar_header *) &disk[off];
+        if (header->name[0] == '\0')
+            break;
+
+        if (strcmp(header->magic, "ustar") != 0)
+            PANIC("invalid tar header: magic=\"%s\"", header->magic);
+
+        int filesz = oct2int(header->size, sizeof(header->size));
+        struct file *file = &files[i];
+        file->in_use = true;
+        strcpy(file->name, header->name);
+        memcpy(file->data, header->data, filesz);
+        file->size = filesz;
+        printf("file: %s, size=%d\n", file->name, file->size);
+
+        off += align_up(sizeof(struct tar_header) + filesz, SECTOR_SIZE);
+    }
+}
+
+void fs_flush(void) {
+    // 将所有文件内容复制到 `disk` 缓冲区
+    memset(disk, 0, sizeof(disk));
+    unsigned off = 0;
+    for (int file_i = 0; file_i < FILES_MAX; file_i++) {
+        struct file *file = &files[file_i];
+        if (!file->in_use)
+            continue;
+
+        struct tar_header *header = (struct tar_header *) &disk[off];
+        memset(header, 0, sizeof(*header));
+        strcpy(header->name, file->name);
+        strcpy(header->mode, "000644");
+        strcpy(header->magic, "ustar");
+        strcpy(header->version, "00");
+        header->type = '0';
+
+        // 将文件大小转换为八进制字符串
+        int filesz = file->size;
+        for (int i = sizeof(header->size); i > 0; i--) {
+            header->size[i - 1] = (filesz % 8) + '0';
+            filesz /= 8;
+        }
+
+        // 计算校验和
+        int checksum = ' ' * sizeof(header->checksum);
+        for (unsigned i = 0; i < sizeof(struct tar_header); i++)
+            checksum += (unsigned char) disk[off + i];
+
+        for (int i = 5; i >= 0; i--) {
+            header->checksum[i] = (checksum % 8) + '0';
+            checksum /= 8;
+        }
+
+        // 复制文件数据
+        memcpy(header->data, file->data, file->size);
+        off += align_up(sizeof(struct tar_header) + file->size, SECTOR_SIZE);
+    }
+
+    // 将 `disk` 缓冲区写入 virtio-blk
+    for (unsigned sector = 0; sector < sizeof(disk) / SECTOR_SIZE; sector++)
+        read_write_disk(&disk[sector * SECTOR_SIZE], sector, true);
+
+    printf("wrote %d bytes to disk\n", sizeof(disk));
+}
+
+//异常
+struct trap_frame {
+    uint32_t ra;
+    uint32_t gp;
+    uint32_t tp;
+    uint32_t t0;
+    uint32_t t1;
+    uint32_t t2;
+    uint32_t t3;
+    uint32_t t4;
+    uint32_t t5;
+    uint32_t t6;
+    uint32_t a0;
+    uint32_t a1;
+    uint32_t a2;
+    uint32_t a3;
+    uint32_t a4;
+    uint32_t a5;
+    uint32_t a6;
+    uint32_t a7;
+    uint32_t s0;
+    uint32_t s1;
+    uint32_t s2;
+    uint32_t s3;
+    uint32_t s4;
+    uint32_t s5;
+    uint32_t s6;
+    uint32_t s7;
+    uint32_t s8;
+    uint32_t s9;
+    uint32_t s10;
+    uint32_t s11;
+    uint32_t sp;
+} __attribute__((packed));
+
+struct file *fs_lookup(const char *filename) {
+    for (int i = 0; i < FILES_MAX; i++) {
+        struct file *file = &files[i];
+        if (!strcmp(file->name, filename))
+            return file;
+    }
+
+    return NULL;
+}
+
+void handle_syscall(struct trap_frame *f) {
+    switch (f->a3) {
+        case SYS_EXIT:
+            printf("process %d exited\n", current_proc->pid);
+            current_proc->state = PROC_EXITED;
+            yield();
+            PANIC("unreachable");
+        case SYS_GETCHAR:
+            while (1) {
+                long ch = getchar();
+                if (ch >= 0) {
+                    f->a0 = ch;
+                    break;
+                }
+
+                yield();
+            }
+            break;
+        case SYS_PUTCHAR:
+            putchar(f->a0);
+            break;
+        case SYS_READFILE:
+        case SYS_WRITEFILE: {
+            const char *filename = (const char *) f->a0;
+            char *buf = (char *) f->a1;
+            int len = f->a2;
+            struct file *file = fs_lookup(filename);
+            if (!file) {
+                printf("file not found: %s\n", filename);
+                f->a0 = -1;
+                break;
+            }
+
+            if (len > (int) sizeof(file->data))
+                len = file->size;
+
+            if (f->a3 == SYS_WRITEFILE) {
+                memcpy(file->data, buf, len);
+                file->size = len;
+                fs_flush();
+            } else {
+                memcpy(buf, file->data, len);
+            }
+
+            f->a0 = len;
+            break;
+        }
+        default:
+            PANIC("unexpected syscall a3=%x\n", f->a3);
+    }
+}
+
+void handle_trap(struct trap_frame *f) {
+    uint32_t scause = READ_CSR(scause);
+    uint32_t stval = READ_CSR(stval);
+    uint32_t user_pc = READ_CSR(sepc);
+
+    if (scause == SCAUSE_ECALL) {
+        handle_syscall(f);
+        user_pc += 4;
+    } else {
+        PANIC("unexpected trap scause=%x, stval=%x, sepc=%x\n", scause, stval, user_pc);
+    }
+
+    WRITE_CSR(sepc, user_pc);
+}
+
+__attribute__((naked))
+__attribute__((aligned(4)))
+void kernel_entry(void) {
+    __asm__ __volatile__(
+        // 从sscratch中获取运行进程的内核栈
+        "csrrw sp, sscratch, sp\n"
+
+        "addi sp, sp, -4 * 31\n"
+        "sw ra,  4 * 0(sp)\n"
+        "sw gp,  4 * 1(sp)\n"
+        "sw tp,  4 * 2(sp)\n"
+        "sw t0,  4 * 3(sp)\n"
+        "sw t1,  4 * 4(sp)\n"
+        "sw t2,  4 * 5(sp)\n"
+        "sw t3,  4 * 6(sp)\n"
+        "sw t4,  4 * 7(sp)\n"
+        "sw t5,  4 * 8(sp)\n"
+        "sw t6,  4 * 9(sp)\n"
+        "sw a0,  4 * 10(sp)\n"
+        "sw a1,  4 * 11(sp)\n"
+        "sw a2,  4 * 12(sp)\n"
+        "sw a3,  4 * 13(sp)\n"
+        "sw a4,  4 * 14(sp)\n"
+        "sw a5,  4 * 15(sp)\n"
+        "sw a6,  4 * 16(sp)\n"
+        "sw a7,  4 * 17(sp)\n"
+        "sw s0,  4 * 18(sp)\n"
+        "sw s1,  4 * 19(sp)\n"
+        "sw s2,  4 * 20(sp)\n"
+        "sw s3,  4 * 21(sp)\n"
+        "sw s4,  4 * 22(sp)\n"
+        "sw s5,  4 * 23(sp)\n"
+        "sw s6,  4 * 24(sp)\n"
+        "sw s7,  4 * 25(sp)\n"
+        "sw s8,  4 * 26(sp)\n"
+        "sw s9,  4 * 27(sp)\n"
+        "sw s10, 4 * 28(sp)\n"
+        "sw s11, 4 * 29(sp)\n"
+
+        // 获取并保存异常发生时的sp
+        "csrr a0, sscratch\n"
+        "sw a0, 4 * 30(sp)\n"
+
+        // 重置内核栈
+        "addi a0, sp, 4 * 31\n"
+        "csrw sscratch, a0\n"
+
+        "mv a0, sp\n"
+        "call handle_trap\n"
+
+        "lw ra,  4 * 0(sp)\n"
+        "lw gp,  4 * 1(sp)\n"
+        "lw tp,  4 * 2(sp)\n"
+        "lw t0,  4 * 3(sp)\n"
+        "lw t1,  4 * 4(sp)\n"
+        "lw t2,  4 * 5(sp)\n"
+        "lw t3,  4 * 6(sp)\n"
+        "lw t4,  4 * 7(sp)\n"
+        "lw t5,  4 * 8(sp)\n"
+        "lw t6,  4 * 9(sp)\n"
+        "lw a0,  4 * 10(sp)\n"
+        "lw a1,  4 * 11(sp)\n"
+        "lw a2,  4 * 12(sp)\n"
+        "lw a3,  4 * 13(sp)\n"
+        "lw a4,  4 * 14(sp)\n"
+        "lw a5,  4 * 15(sp)\n"
+        "lw a6,  4 * 16(sp)\n"
+        "lw a7,  4 * 17(sp)\n"
+        "lw s0,  4 * 18(sp)\n"
+        "lw s1,  4 * 19(sp)\n"
+        "lw s2,  4 * 20(sp)\n"
+        "lw s3,  4 * 21(sp)\n"
+        "lw s4,  4 * 22(sp)\n"
+        "lw s5,  4 * 23(sp)\n"
+        "lw s6,  4 * 24(sp)\n"
+        "lw s7,  4 * 25(sp)\n"
+        "lw s8,  4 * 26(sp)\n"
+        "lw s9,  4 * 27(sp)\n"
+        "lw s10, 4 * 28(sp)\n"
+        "lw s11, 4 * 29(sp)\n"
+        "lw sp,  4 * 30(sp)\n"
+        "sret\n"
+    );
+}
+
 void kernel_main(void) {
     memset(__bss, 0, (size_t) __bss_end - (size_t) __bss);
 
@@ -570,13 +693,14 @@ void kernel_main(void) {
     WRITE_CSR(stvec, (uint32_t) kernel_entry);
 
     virtio_blk_init(); // new
+    fs_init();
 
-    char buf[SECTOR_SIZE];
-    read_write_disk(buf, 0, false /* 从磁盘读取 */);
-    printf("first sector: %s\n", buf);
+    // char buf[SECTOR_SIZE];
+    // read_write_disk(buf, 0, false /* 从磁盘读取 */);
+    // printf("first sector: %s\n", buf);
 
-    strcpy(buf, "hello from kernel!!!\n");
-    read_write_disk(buf, 0, true /* 写入磁盘 */);
+    // strcpy(buf, "hello from kernel!!!\n");
+    // read_write_disk(buf, 0, true /* 写入磁盘 */);
 
     idle_proc = create_process(NULL, 0); // 已更新!
     idle_proc->pid = 0; // idle

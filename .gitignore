@@ -5,3 +5,6 @@
 *.bin
 *.txt
 *.log
+
+# archive files
+*.tar
