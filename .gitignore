@@ -1,4 +1,4 @@
-# compiled source
+# Build artifacts
 *.elf
 *.map
 *.o
@@ -6,5 +6,12 @@
 *.txt
 *.log
 
-# archive files
+# Archive files
 *.tar
+
+# Disk input files are required to build the image
+!/disk/*.txt
+
+# Local temporary files
+/tmp/
+.DS_Store
